@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mega City GTA - 5 Missions</title>
+    <style>
+        * { margin: 0; padding: 0; touch-action: none; user-select: none; }
+        body { overflow: hidden; background-color: #87CEEB; }
+        #ui { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.6); color: yellow; font-family: sans-serif; font-size: 15px; padding: 10px; border-radius: 8px; z-index: 10; width: 80%; }
+        #joystick-zone { position: absolute; bottom: 30px; left: 30px; width: 120px; height: 120px; z-index: 10; }
+        #action-btn { position: absolute; bottom: 50px; right: 50px; width: 70px; height: 70px; border-radius: 50%; background: red; color: white; font-weight: bold; font-size: 16px; border: 3px solid darkred; z-index: 10; box-shadow: 2px 2px 10px black; }
+        #action-btn:active { background: darkred; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+</head>
+<body>
+    <div id="ui">Mission 1: Find the Blue Car!</div>
+    <div id="joystick-zone"></div>
+    <button id="action-btn">ENTER</button>
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        scene.fog = new THREE.Fog(0x87CEEB, 30, 150); // दूर की चीजें धुंधली दिखेंगी
+
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: false }); // Mobile optimization
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(50, 100, 50);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x606060));
+
+        // Ground
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshLambertMaterial({ color: 0x2e5c2b }));
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Grid Roads
+        const roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+        for(let i = -200; i <= 200; i += 50) {
+            let roadX = new THREE.Mesh(new THREE.PlaneGeometry(12, 500), roadMat);
+            roadX.rotation.x = -Math.PI/2; roadX.position.set(i, 0.1, 0); scene.add(roadX);
+            let roadZ = new THREE.Mesh(new THREE.PlaneGeometry(500, 12), roadMat);
+            roadZ.rotation.x = -Math.PI/2; roadZ.position.set(0, 0.1, i); scene.add(roadZ);
+        }
+
+        // Buildings (Optimize karke banayi hain)
+        for(let i = 0; i < 150; i++) {
+            let px = (Math.random() - 0.5) * 400; let pz = (Math.random() - 0.5) * 400;
+            if(px % 50 > -8 && px % 50 < 8) continue; // सड़कों पर बिल्डिंग न बने
+            if(pz % 50 > -8 && pz % 50 < 8) continue;
+            let h = Math.random() * 20 + 10;
+            let bldg = new THREE.Mesh(new THREE.BoxGeometry(10, h, 10), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+            bldg.position.set(px, h/2, pz);
+            scene.add(bldg);
+        }
+        // Clean Chibi Generator (बिना चेहरे के एक्स्ट्रा लाइन्स के)
+        function createChibi(shirtColor) {
+            const char = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.4, 1.2), new THREE.MeshLambertMaterial({ color: shirtColor }));
+            body.position.y = 0.7;
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffdcb1 })); // Clean skin
+            head.position.y = 1.9;
+            char.add(body); char.add(head);
+            return char;
+        }
+      const player = createChibi(0x0000ff); // Player Blue shirt me
+        scene.add(player);
+
+        // Walking NPCs
+        const npcs = [];
+        for(let i=0; i<15; i++) {
+            let npc = createChibi(Math.random() * 0xffffff);
+            npc.position.set((Math.random()-0.5)*100, 0, (Math.random()-0.5)*100);
+            scene.add(npc); npcs.push(npc);
+        }
+
+        // Traffic Cars (AI)
+        const carsAI = [];
+        for(let i=0; i<5; i++) {
+            let c = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 5), new THREE.MeshLambertMaterial({ color: Math.random() * 0xffffff }));
+            c.position.set(-50 + (i*25), 0.75, 0); // Road par
+            scene.add(c); carsAI.push(c);
+        }
+
+        // Mission Objects
+        const driveableCar = new THREE.Mesh(new THREE.BoxGeometry(3, 1.5, 6), new THREE.MeshLambertMaterial({ color: 0x1f51ff }));
+        driveableCar.position.set(20, 0.75, -20); scene.add(driveableCar);
+
+        const vipNPC = createChibi(0x00ff00); // VIP green mein
+        vipNPC.position.set(-40, 0, -40); scene.add(vipNPC);
+
+        const helipad = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 0.5, 16), new THREE.MeshLambertMaterial({ color: 0x444444 }));
+        helipad.position.set(50, 0.25, 50); scene.add(helipad);
+
+        // Helicopter
+        const helicopter = new THREE.Group();
+        const heliBody = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 6), new THREE.MeshLambertMaterial({ color: 0xff0000 }));
+        heliBody.position.y = 2;
+        const rotor = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 0.5), new THREE.MeshLambertMaterial({ color: 0x111111 }));
+        rotor.position.set(0, 3.6, 0);
+        helicopter.add(heliBody); helicopter.add(rotor);
+        helicopter.position.set(50, 0, 50); // Helipad par
+        scene.add(helicopter);
+
+        const redTower = new THREE.Mesh(new THREE.BoxGeometry(15, 60, 15), new THREE.MeshLambertMaterial({ color: 0x8b0000 }));
+        redTower.position.set(-100, 30, 100); scene.add(redTower);
+        
+        const secretBox = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshLambertMaterial({ color: 0xffff00 }));
+        secretBox.position.set(-100, 61.5, 100); scene.add(secretBox);
+        let moveX = 0, moveZ = 0, angle = 0;
+        let activeVehicle = null; // 'car' ya 'heli'
+        let missionStage = 1;
+        
+        const speeds = { walk: 0.15, car: 0.4, heli: 0.5 }; // Mobile Optimized Speeds
+
+        const joystick = nipplejs.create({ zone: document.getElementById('joystick-zone'), mode: 'static', position: { left: '70px', bottom: '70px' }, color: 'white' });
+        
+        joystick.on('move', (evt, data) => {
+            angle = data.angle.radian;
+            let spd = activeVehicle === 'car' ? speeds.car : (activeVehicle === 'heli' ? speeds.heli : speeds.walk);
+            moveX = Math.cos(angle) * spd; moveZ = -Math.sin(angle) * spd;
+        });
+        joystick.on('end', () => { moveX = 0; moveZ = 0; });
+
+        // Action Button Logic (गाड़ी में बैठना / उतरना)
+        document.getElementById('action-btn').addEventListener('touchstart', () => {
+            if(!activeVehicle) {
+                if(player.position.distanceTo(driveableCar.position) < 5) {
+                    activeVehicle = 'car'; player.visible = false;
+                } else if(player.position.distanceTo(helicopter.position) < 6) {
+                    activeVehicle = 'heli'; player.visible = false;
+                    helicopter.position.y = 15; // Heli hawa me udyega
+                }
+            } else {
+                // Exit Vehicle
+                let vPos = activeVehicle === 'car' ? driveableCar.position : helicopter.position;
+                player.position.set(vPos.x + 4, 0, vPos.z);
+                player.visible = true;
+                if(activeVehicle === 'heli') helicopter.position.y = 0; // Zameen par
+                activeVehicle = null;
+            }
+        });
+        function updateMissions() {
+            let ui = document.getElementById('ui');
+            let mainObj = activeVehicle === 'car' ? driveableCar : (activeVehicle === 'heli' ? helicopter : player);
+
+            if(missionStage === 1 && activeVehicle === 'car') {
+                missionStage = 2; ui.innerText = "Mission 2: Drive to the VIP (Green Guy)!";
+            } 
+            else if(missionStage === 2 && mainObj.position.distanceTo(vipNPC.position) < 8) {
+                missionStage = 3; vipNPC.visible = false; // VIP gadi me aa gaya
+                ui.innerText = "Mission 3: Take VIP to the Helipad!";
+            }
+            else if(missionStage === 3 && mainObj.position.distanceTo(helipad.position) < 10) {
+                missionStage = 4; ui.innerText = "Mission 4: Get in Helicopter and fly to Red Tower!";
+            }
+            else if(missionStage === 4 && activeVehicle === 'heli' && mainObj.position.distanceTo(new THREE.Vector3(-100, 15, 100)) < 20) {
+                missionStage = 5; ui.innerText = "Mission 5: Land on Tower, Exit Heli & get Yellow Box!";
+            }
+            else if(missionStage === 5 && !activeVehicle && player.position.y > 50 && player.position.distanceTo(secretBox.position) < 5) {
+                ui.innerText = "ALL MISSIONS COMPLETED! YOU ARE THE BOSS! 🏆"; secretBox.visible = false;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let mainObj = player;
+
+            if(activeVehicle === 'car') { mainObj = driveableCar; }
+            else if(activeVehicle === 'heli') { mainObj = helicopter; rotor.rotation.y += 0.5; }
+
+            // Movement
+            mainObj.position.x += moveX; mainObj.position.z += moveZ;
+            if(moveX !== 0 || moveZ !== 0) mainObj.rotation.y = -angle + Math.PI/2;
+
+            // AI Traffic & NPCs (Simple slow movement for mobile)
+            npcs.forEach(npc => { npc.position.x += 0.02; if(npc.position.x > 200) npc.position.x = -200; });
+            carsAI.forEach(c => { c.position.z += 0.2; if(c.position.z > 200) c.position.z = -200; });
+
+            updateMissions();
+
+            camera.position.set(mainObj.position.x, mainObj.position.y + 8, mainObj.position.z + 15);
+            camera.lookAt(mainObj.position);
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
